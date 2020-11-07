@@ -5,6 +5,9 @@ accs["paul"] = {pw: "4321"};
 accs["tim"] = {pw: "2314"};
 
 var tokens = {}
+var rooms = {}
+rooms[0] = {people: ["erik", "paul"], messages: [{sender: "erik", msg: "hey"}, {sender: "paul", msg: "lol"}]};
+rooms[1] = {people: ["tim", "paul"], messages: [{sender: "tim", msg: "tat"}, {sender: "paul", msg: "lul"}]};
 exports.handleMessage = function (connection, message) {
     console.log("Handler Attached")
     if (message.type === 'utf8') {
@@ -41,7 +44,7 @@ exports.handleMessage = function (connection, message) {
 
                     var newToken = getRandomString();
 
-                    tokens[newToken] = {user: name}
+                    tokens[newToken] = {user: name, conn: connection}
                     connection.sendUTF(JSON.stringify({"response": "successful", "token": newToken}));
                     return;
                 } else {
@@ -72,9 +75,71 @@ exports.handleMessage = function (connection, message) {
             var pw = data.pw;
             accs[name] = {pw:pw}
             connection.sendUTF(JSON.stringify({"response": "successful"}))
+            return;
         }
 
-        //connection.sendUTF(response);
+        //
+        // Chat
+        //
+
+        // Get Chatroom for user
+        if(data.request === "chat:getrooms") {
+
+            if(isTokenValid(data.token)) {
+                let resp = [];
+                let user = tokens[data.token].user;
+                for (const room in Object.keys(rooms)) {
+                    if(rooms[room].people.includes(user)) {
+                        resp.push(rooms[room]);
+                    }
+                }
+                connection.sendUTF(JSON.stringify({"response": "successful", "data": resp}))
+                return;
+            } else {
+                connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
+                return;
+            }
+
+        }
+
+        // Get Messages
+        if(data.request === "chat:getMessages") {
+
+            if(isTokenValid(data.token)) {
+                var room = data.room;
+                let resp;
+                resp = rooms[room].messages;
+                connection.sendUTF(JSON.stringify({"response": "successful", "data": resp}))
+                return;
+            } else {
+                connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
+                return;
+            }
+
+        }
+
+        // Send Message
+        if(data.request === "chat:sendMessage") {
+            if(isTokenValid(data.token)) {
+                let room = rooms[data.room];
+                let text = data.text;
+                let sender = tokens[data.token].name;
+
+                room.messages.push({sender: sender, msg: text})
+                for (const p in room.people) {
+                    for(to in tokens) {
+                        if(tokens[to].user === p) {
+                            tokens[to].conn.sendUTF(JSON.stringify({"request": "newmessage", "room": room, "sender": sender, "text": text}));
+                        }
+                    }
+                }
+                connection.sendUTF(JSON.stringify({"response": "successful"}));
+                return;
+            } else {
+                connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}));
+                return;
+            }
+        }
 
     }
     else if (message.type === 'binary') {
