@@ -10,8 +10,14 @@ exports.handleMessage = function (connection, message) {
     if (message.type === 'utf8') {
         console.log('Received Message: ' + message.utf8Data);
         var response = "";
-        let data = JSON.parse(message.utf8Data);
 
+        let data;
+
+        if(typeof message.utf8Data === 'object') {
+            data = message.utf8Data;
+        } else {
+            data = JSON.parse(message.utf8Data);
+        }
         // Malformed
         if(data.request === undefined) {
             connection.sendUTF(invalidRequest());
@@ -61,12 +67,20 @@ exports.handleMessage = function (connection, message) {
             }
         }
 
+        if(data.request === "register") {
+            var name = data.user;
+            var pw = data.pw;
+            accs[name] = {pw:pw}
+            connection.sendUTF(JSON.stringify({"response": "successful"}))
+        }
+
         //connection.sendUTF(response);
 
     }
     else if (message.type === 'binary') {
         console.log('Received Binary Message of ' + message.binaryData.length + ' bytes');
         connection.sendBytes(message.binaryData);
+        return;
     }
 
 }
