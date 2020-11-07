@@ -6,8 +6,13 @@ accs["tim"] = {pw: "2314"};
 
 var tokens = {}
 var rooms = {}
-rooms[0] = {people: ["erik", "paul"], messages: [{sender: "erik", msg: "hey"}, {sender: "paul", msg: "lol"}]};
-rooms[1] = {people: ["tim", "paul"], messages: [{sender: "tim", msg: "tat"}, {sender: "paul", msg: "lul"}]};
+rooms[0] = {id: 12, people: ["erik", "paul"], messages: [{sender: "erik", msg: "hey"}, {sender: "paul", msg: "lol"}]};
+rooms[1] = {id: 18, people: ["tim", "paul"], messages: [{sender: "tim", msg: "tat"}, {sender: "paul", msg: "lul"}]};
+
+var i_care = {};
+for(room in rooms) { // Init to prevent bugs
+    i_care[rooms[room].id] = []
+}
 exports.handleMessage = function (connection, message) {
     console.log("Handler Attached")
     if (message.type === 'utf8') {
@@ -126,6 +131,7 @@ exports.handleMessage = function (connection, message) {
                 let sender = tokens[data.token].name;
 
                 room.messages.push({sender: sender, msg: text})
+
                 for (const p in room.people) {
                     for(to in tokens) {
                         if(tokens[to].user === p) {
@@ -137,6 +143,39 @@ exports.handleMessage = function (connection, message) {
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}));
+                return;
+            }
+        }
+
+        if(data.request === "chat:iCare") {
+
+            if(isTokenValid(data.token)) {
+                var room = data.room;
+
+                i_care[room].push({name: tokens[data.token].user, conn: connection});
+                connection.sendUTF(JSON.stringify({"response": "successful"}))
+                return;
+            } else {
+                connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
+                return;
+            }
+        }
+
+        if(data.request === "chat:iDontCare") {
+
+            if(isTokenValid(data.token)) {
+                var room = data.room;
+
+                for(let roomentry in i_care[room]) {
+                    if(roomentry.name === tokens[data.token].user) {
+                        const id = i_care.indexOf(roomentry);
+                        i_care[room].splice(id, 1);
+                    }
+                }
+                connection.sendUTF(JSON.stringify({"response": "successful"}))
+                return;
+            } else {
+                connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
                 return;
             }
         }
