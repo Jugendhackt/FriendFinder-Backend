@@ -50,7 +50,7 @@ exports.handleMessage = function (connection, message) {
                     var newToken = getRandomString();
 
                     tokens[newToken] = {user: name, conn: connection}
-                    connection.sendUTF(JSON.stringify({"response": "successful", "token": newToken}));
+                    connection.sendUTF(JSON.stringify({"response": "successful","req": "login", "token": newToken}));
                     return;
                 } else {
                     connection.sendUTF(JSON.stringify({"response":"failed", "code":"CREDENTIALS_WRONG", "message": "Falscher Benutzername oder Passwort!"}));
@@ -67,7 +67,7 @@ exports.handleMessage = function (connection, message) {
 
             if(isTokenValid(token)) {
                 tokens[token] = undefined;
-                connection.sendUTF(JSON.stringify({"response": "successful"}))
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "logout"}))
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
@@ -79,7 +79,7 @@ exports.handleMessage = function (connection, message) {
             var name = data.user;
             var pw = data.pw;
             accs[name] = {pw:pw}
-            connection.sendUTF(JSON.stringify({"response": "successful"}))
+            connection.sendUTF(JSON.stringify({"response": "successful", "req": "register"}))
             return;
         }
 
@@ -98,7 +98,7 @@ exports.handleMessage = function (connection, message) {
                         resp.push(rooms[room]);
                     }
                 }
-                connection.sendUTF(JSON.stringify({"response": "successful", "data": resp}))
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:getrooms", "data": resp}))
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
@@ -113,8 +113,12 @@ exports.handleMessage = function (connection, message) {
             if(isTokenValid(data.token)) {
                 var room = data.room;
                 let resp;
-                resp = rooms[room].messages;
-                connection.sendUTF(JSON.stringify({"response": "successful", "data": resp}))
+                for(r in rooms) {
+                    if(rooms[r].id === room) {
+                        resp = rooms[r].messages;
+                    }
+                }
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:getMessages", "data": resp, "name": tokens[data.token].user}))
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
@@ -126,20 +130,25 @@ exports.handleMessage = function (connection, message) {
         // Send Message
         if(data.request === "chat:sendMessage") {
             if(isTokenValid(data.token)) {
-                let room = rooms[data.room];
-                let text = data.text;
-                let sender = tokens[data.token].name;
+                let room = getRoomByID(data.room);
+                let text = data.message;
+                let sender = tokens[data.token].user;
 
                 room.messages.push({sender: sender, msg: text})
 
-                for (const p in room.people) {
-                    for(to in tokens) {
-                        if(tokens[to].user === p) {
-                            tokens[to].conn.sendUTF(JSON.stringify({"request": "newmessage", "room": room, "sender": sender, "text": text}));
-                        }
-                    }
+                var users = i_care[room.id];
+                for (user in users) {
+                    let u = users[user];
+                    u.conn.sendUTF(JSON.stringify(
+                        {
+                            "request": "newmessage",
+                            "room": room,
+                            "sender": sender,
+                            "text": text,
+                            "name": tokens[data.token].user
+                        }));
                 }
-                connection.sendUTF(JSON.stringify({"response": "successful"}));
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:sendMessage"}));
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}));
@@ -153,12 +162,14 @@ exports.handleMessage = function (connection, message) {
                 var room = data.room;
 
                 i_care[room].push({name: tokens[data.token].user, conn: connection});
-                connection.sendUTF(JSON.stringify({"response": "successful"}))
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:iCare"}))
+                console.log("Added " + tokens[data.token].user + " mit: " + connection);
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
                 return;
             }
+
         }
 
         if(data.request === "chat:iDontCare") {
@@ -172,7 +183,7 @@ exports.handleMessage = function (connection, message) {
                         i_care[room].splice(id, 1);
                     }
                 }
-                connection.sendUTF(JSON.stringify({"response": "successful"}))
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:iDontCare"}))
                 return;
             } else {
                 connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
@@ -198,4 +209,12 @@ function getRandomString() {
 
 function isTokenValid(token) {
     return tokens[token] !== undefined;
+}
+function getRoomByID(id) {
+    for(r in rooms) {
+        let m = rooms[r];
+        if(m.id === id) {
+            return m;
+        }
+    }
 }
