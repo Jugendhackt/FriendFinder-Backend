@@ -1,20 +1,27 @@
 
 var accs = {};
-accs["erik"] = {pw: "1234"};
-accs["paul"] = {pw: "4321"};
-accs["tim"] = {pw: "2314"};
+accs["Pascal"] = {pw: "1234"};
+accs["Erik"] = {pw: "1234"};
+accs["Lukas"] = {pw: "1234"};
+accs["Karol"] = {pw: "1234"};
 
 var tokens = {}
 var rooms = {}
-rooms[0] = {id: 12, people: ["erik", "paul"], messages: [{sender: "erik", msg: "hey"}, {sender: "paul", msg: "lol"}]};
-rooms[1] = {id: 18, people: ["tim", "paul"], messages: [{sender: "tim", msg: "tat"}, {sender: "paul", msg: "lul"}]};
+rooms[0] = {id: 12, people: ["Erik", "Pascal"], messages: []};
+rooms[1] = {id: 18, people: ["Erik", "Pascal", "Lukas", "Karol"], messages: []};
 
 var i_care = {};
 for(room in rooms) { // Init to prevent bugs
     i_care[rooms[room].id] = []
 }
+
+process.on('uncaughtException', function (err) {
+    console.error(err);
+    console.log("Node NOT Exiting...");
+});
+
 exports.handleMessage = function (connection, message) {
-    console.log("Handler Attached")
+    //console.log("Handler Attached")
     if (message.type === 'utf8') {
         console.log('Received Message: ' + message.utf8Data);
         var response = "";
@@ -37,6 +44,7 @@ exports.handleMessage = function (connection, message) {
             connection.sendUTF(JSON.stringify({"response":"pong"}));
             return;
         }
+
 
         // Login
         if(data.request === "login") {
@@ -82,6 +90,17 @@ exports.handleMessage = function (connection, message) {
             connection.sendUTF(JSON.stringify({"response": "successful", "req": "register"}))
             return;
         }
+
+        // Is Session Valid?
+        if(data.request === "session") {
+            if(isTokenValid(data.token)) {
+                connection.sendUTF(JSON.stringify({"response": "successful", "req": "session"}))
+            } else {
+                connection.sendUTF(JSON.stringify({"response": "failed", "code": "TOKEN_INVALID", "message": "Nicht eingeloggt"}))
+            }
+        }
+
+
 
         //
         // Chat
@@ -135,6 +154,9 @@ exports.handleMessage = function (connection, message) {
                 let sender = tokens[data.token].user;
 
                 room.messages.push({sender: sender, msg: text})
+                if(text === "!clear") {
+                    room.messages = []
+                }
 
                 var users = i_care[room.id];
                 for (user in users) {
@@ -145,7 +167,7 @@ exports.handleMessage = function (connection, message) {
                             "room": room,
                             "sender": sender,
                             "text": text,
-                            "name": tokens[data.token].user
+                            "name": u.name
                         }));
                 }
                 connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:sendMessage"}));
