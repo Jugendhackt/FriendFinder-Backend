@@ -152,11 +152,12 @@ exports.handleMessage = function (connection, message) {
                 let room = getRoomByID(data.room);
                 let text = data.message;
                 let sender = tokens[data.token].user;
+                let randomID = getRandomString() + getRandomString();
 
-                room.messages.push({sender: sender, msg: text})
-                if(text === "!clear") {
+                room.messages.push({sender: sender, msg: text, id: randomID})
+                /*if(text === "!clear") {
                     room.messages = []
-                }
+                }*/
 
                 var users = i_care[room.id];
                 for (user in users) {
@@ -167,7 +168,8 @@ exports.handleMessage = function (connection, message) {
                             "room": room,
                             "sender": sender,
                             "text": text,
-                            "name": u.name
+                            "name": u.name,
+                            "randomID": randomID
                         }));
                 }
                 connection.sendUTF(JSON.stringify({"response": "successful", "req": "chat:sendMessage"}));
